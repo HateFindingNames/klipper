@@ -47,6 +47,7 @@ class PrinterProbe:
                                                  minval=0.)
         self.samples_retries = config.getint('samples_tolerance_retries', 0,
                                              minval=0)
+        self.samples_drop = config.getint('samples_drop', 0, minval=0)
         # Register z_virtual_endstop pin
         self.printer.lookup_object('pins').register_chip('probe', self)
         # Register homing event handlers
@@ -150,6 +151,7 @@ class PrinterProbe:
                                            self.samples_tolerance, minval=0.)
         samples_retries = gcmd.get_int("SAMPLES_TOLERANCE_RETRIES",
                                        self.samples_retries, minval=0)
+        samples_drop = gcmd.get_int("SAMPLES_DROP", self.samples_drop, minval=0)
         samples_result = gcmd.get("SAMPLES_RESULT", self.samples_result)
         must_notify_multi_probe = not self.multi_probe_pending
         if must_notify_multi_probe:
@@ -172,6 +174,8 @@ class PrinterProbe:
             # Retract
             if len(positions) < sample_count:
                 self._move(probexy + [pos[2] + sample_retract_dist], lift_speed)
+        del positions[:self.samples_drop]
+        gcmd.respond_info("First %d samples dropped." % self.samples_drop)
         if must_notify_multi_probe:
             self.multi_probe_end()
         # Calculate and return result

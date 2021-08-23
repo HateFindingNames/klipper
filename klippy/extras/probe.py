@@ -47,7 +47,12 @@ class PrinterProbe:
                                                  minval=0.)
         self.samples_retries = config.getint('samples_tolerance_retries', 0,
                                              minval=0)
-        self.samples_drop = config.getint('samples_drop', 0, minval=0)
+        # Get config option 'allowed_sample_deviation'. The first probe samples will be checked against deviations > 'allowed_sample_deviation' to tell if probing is trending
+        self.allowed_sample_deviation = config.getint('z_step_distance', 0, minval=0)
+        # Get config option 'number_of_passes'. This is the amount of repeated sample deviations <= 'allowed_sample_deviation' in order to start actual probing procedure
+        self.number_of_passes = config.getint('number_of_passes', 1, minval=1)
+        # Get config option 'max_fails'. If 'number_of_passes' is not reached after 'max_fails' probing will proceed with regular behaviour
+        self.max_fails = config.getint('max_fails', 5, minval=1)
         # Register z_virtual_endstop pin
         self.printer.lookup_object('pins').register_chip('probe', self)
         # Register homing event handlers
@@ -151,7 +156,6 @@ class PrinterProbe:
                                            self.samples_tolerance, minval=0.)
         samples_retries = gcmd.get_int("SAMPLES_TOLERANCE_RETRIES",
                                        self.samples_retries, minval=0)
-        samples_drop = gcmd.get_int("SAMPLES_DROP", self.samples_drop, minval=0)
         samples_result = gcmd.get("SAMPLES_RESULT", self.samples_result)
         must_notify_multi_probe = not self.multi_probe_pending
         if must_notify_multi_probe:
@@ -159,12 +163,21 @@ class PrinterProbe:
         probexy = self.printer.lookup_object('toolhead').get_position()[:2]
         retries = 0
         positions = []
-        # take some dummy samples
-        while len(positions) < samples_drop:
-            pos = self._probe(speed)
-            positions.append(pos)
-            # if len(positions) >= 1:
-                # delta = positions[-1] - pos
+        # take some dummy samples and check if they are trending. repeat while still trending or abort if 'max_fails' is reached
+        if self.number_of_passes > 0:
+            while passed < self.number_of_passes or fails == self.max_fails:
+                passed = 0
+                fails = 0
+                pos = self._probe(speed)
+                positions.append(pos)
+                if len(positions) >= 1:
+                    dz = abs(positions[-1] - pos)
+                    if dz <= self.allowed_sample_deviation:
+                        passed += 1
+                    else:
+                        if passed > 0:
+                            passed -= 1
+                fails += 1
         positions = []
         while len(positions) < sample_count:
             # Probe position

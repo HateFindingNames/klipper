@@ -48,9 +48,9 @@ class PrinterProbe:
         self.samples_retries = config.getint('samples_tolerance_retries', 0,
                                              minval=0)
         # Get config option 'allowed_sample_deviation'. The first probe samples will be checked against deviations > 'allowed_sample_deviation' to tell if probing is trending
-        self.allowed_sample_deviation = config.getint('z_step_distance', 0, minval=0)
+        self.allowed_sample_deviation = config.getfloat('allowed_sample_deviation', 0, minval=0)
         # Get config option 'number_of_passes'. This is the amount of repeated sample deviations <= 'allowed_sample_deviation' in order to start actual probing procedure
-        self.number_of_passes = config.getint('number_of_passes', 1, minval=1)
+        self.number_of_passes = config.getint('number_of_passes', 0, minval=1)
         # Get config option 'max_fails'. If 'number_of_passes' is not reached after 'max_fails' probing will proceed with regular behaviour
         self.max_fails = config.getint('max_fails', 5, minval=1)
         # Register z_virtual_endstop pin
@@ -162,22 +162,25 @@ class PrinterProbe:
             self.multi_probe_begin()
         probexy = self.printer.lookup_object('toolhead').get_position()[:2]
         retries = 0
-        positions = []
         # take some dummy samples and check if they are trending. repeat while still trending or abort if 'max_fails' is reached
         if self.number_of_passes > 0:
-            while passed < self.number_of_passes or fails == self.max_fails:
-                passed = 0
-                fails = 0
+            gcmd.respond_info("Checking trending...")
+            positions = []
+            passed = 0
+            fails = 0
+            while passed < self.number_of_passes and fails < self.max_fails:
                 pos = self._probe(speed)
                 positions.append(pos)
-                if len(positions) >= 1:
-                    dz = abs(positions[-1] - pos)
+                if len(positions) > 1:
+                    dz = round(abs(positions[-2][2] - pos[2]), 7)
                     if dz <= self.allowed_sample_deviation:
                         passed += 1
                     else:
                         if passed > 0:
                             passed -= 1
-                fails += 1
+                        fails = fails + 1
+                self._move(probexy + [pos[2] + sample_retract_dist], lift_speed)
+        gcmd.respond_info("Probing for real...")
         positions = []
         while len(positions) < sample_count:
             # Probe position

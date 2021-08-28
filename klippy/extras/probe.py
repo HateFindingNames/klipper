@@ -48,7 +48,7 @@ class PrinterProbe:
         self.samples_retries = config.getint('samples_tolerance_retries', 0,
                                              minval=0)
         # Get config option 'allowed_sample_deviation'. The first probe samples will be checked against deviations > 'allowed_sample_deviation' to tell if probing is trending
-        self.allowed_sample_deviation = config.getfloat('allowed_sample_deviation', 0, minval=0)
+        self.allowed_sample_deviation = config.getfloat('allowed_sample_deviation', 0.005, minval=0)
         # Get config option 'number_of_passes'. This is the amount of repeated sample deviations <= 'allowed_sample_deviation' in order to start actual probing procedure
         self.number_of_passes = config.getint('number_of_passes', 0, minval=1)
         # Get config option 'max_fails'. If 'number_of_passes' is not reached after 'max_fails' probing will proceed with regular behaviour
